@@ -1,12 +1,12 @@
+# these are taken from https://github.com/jaysonsantos/python-binary-memcached
+
 import unittest
 import bmemcached
 from bmemcached.compat import long, unicode
 
-
 class MemcachedTests(unittest.TestCase):
     def setUp(self):
         self.server = '127.0.0.1:11211'
-        # self.server = '/tmp/memcached.sock'
         self.client = bmemcached.Client(self.server)
 
     def tearDown(self):
