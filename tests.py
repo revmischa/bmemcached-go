@@ -68,31 +68,5 @@ class MemcachedTests(unittest.TestCase):
         self.client.disconnect_all()
         self.assertEqual('test', self.client.get('test_key'))
 
-    # def testDeleteMulti(self):
-    #     self.client.set_multi({
-    #         'test_key': 'value',
-    #         'test_key2': 'value2'})
-
-    #     self.assertTrue(self.client.delete_multi(['test_key', 'test_key2']))
-
-    # def testSetMulti(self):
-    #     self.assertTrue(self.client.set_multi({
-    #         'test_key': 'value',
-    #         'test_key2': 'value2'}))
-
-    # def testSetMultiBigData(self):
-    #     self.client.set_multi(
-    #         dict((unicode(k), b'value') for k in range(32767)))
-
-    # def testGetMulti(self):
-    #     self.assertTrue(self.client.set_multi({
-    #         'test_key': 'value',
-    #         'test_key2': 'value2'
-    #     }))
-    #     self.assertEqual({'test_key': 'value', 'test_key2': 'value2'},
-    #                      self.client.get_multi(['test_key', 'test_key2']))
-    #     self.assertEqual({'test_key': 'value', 'test_key2': 'value2'},
-    #                      self.client.get_multi(['test_key', 'test_key2', 'nothere']))
-
 if __name__ == '__main__':
     unittest.main()

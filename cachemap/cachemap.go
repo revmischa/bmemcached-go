@@ -1,5 +1,10 @@
 package cachemap
 
+// The actual storage of our objects. Safe for concurrent accesses.
+
+// TODO: LRU + expiry so that memory doesn't grow forever
+
+
 import (
 	"sync" // for RWMutex
 )
@@ -19,6 +24,9 @@ type CacheMap struct {
 func New() *CacheMap {
 	return &(CacheMap{m: make(map[string]CacheItem)})
 }
+
+
+/// Mediate access with a read/write mutex
 
 func (cm *CacheMap) Get(key string) ([]byte, Flags, bool) {
 	cm.mutex.RLock()
@@ -42,5 +50,3 @@ func (cm *CacheMap) Delete(key string) bool {
 
 	return exists
 }
-
-// TODO: LRU
