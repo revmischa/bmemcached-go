@@ -7,6 +7,7 @@ It only supports get/set/delete.
 ## Run tests:
 * (Start up server)
 * `python tests.py`
+* (If you use the PyPI version of python-binary-memcached it will throw a string encoding error. The latest version of the library on GitHub has this fixed)
 
 ## Performance considerations:
 * This passes `[]byte` arrays around, which I believe is an expensive copy. There is probably a more efficient way to pass them by reference.
