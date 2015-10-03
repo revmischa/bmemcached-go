@@ -1,8 +1,8 @@
 package bmemcached
 
 import (
-	"encoding/binary"
 	"../cachemap"
+	"encoding/binary"
 	"fmt"
 	"net"
 	"os"
@@ -12,8 +12,8 @@ import (
 const (
 	PORT = "11211"
 
-	OP_GET byte    = 0x00
-	OP_SET byte    = 0x01
+	OP_GET    byte = 0x00
+	OP_SET    byte = 0x01
 	OP_DELETE byte = 0x04
 
 	STATUS_KEY_NOT_FOUND = 0x0001
@@ -21,19 +21,19 @@ const (
 
 type Server struct {
 	listener net.Listener
-	cm *cachemap.CacheMap
+	cm       *cachemap.CacheMap
 }
 
 func NewServer() *Server {
 	cm := cachemap.New()
-	server := Server{ cm: cm }
+	server := Server{cm: cm}
 
 	server.listen()
 
 	return &server
 }
 
-func (s *Server)listen() {
+func (s *Server) listen() {
 	// create listener socket
 	l, err := net.Listen("tcp", ":"+PORT)
 	if err != nil {
@@ -46,7 +46,7 @@ func (s *Server)listen() {
 	s.listener = l
 }
 
-func (s *Server)MainLoop() {
+func (s *Server) MainLoop() {
 	defer s.listener.Close()
 
 	// main accept() loop
@@ -61,9 +61,9 @@ func (s *Server)MainLoop() {
 	}
 }
 
-func (s *Server)clientConnected(conn net.Conn) {
+func (s *Server) clientConnected(conn net.Conn) {
 	// Disable read timeouts. This allows clients to stay connected indefinitely
-	// but could possibly lead to a DoS. 
+	// but could possibly lead to a DoS.
 	err := conn.SetDeadline(*new(time.Time)) // "zero" time (forever)
 	if err != nil {
 		fmt.Println("Failed to disable connection timeout: ", err.Error())
@@ -76,7 +76,7 @@ func (s *Server)clientConnected(conn net.Conn) {
 		readCount, pkt, err := readAtLeast(24, conn)
 
 		if err != nil {
-			fmt.Println("Read error: ", err.Error())
+			// fmt.Println("Read error: ", err.Error())
 			return
 		}
 
@@ -104,6 +104,7 @@ func (s *Server)clientConnected(conn net.Conn) {
 			return
 		}
 
+		extra := payload[:extraLen]
 		keyEnd := int(extraLen) + int(keyLen)
 		key := string(payload[extraLen:keyEnd])
 
@@ -115,17 +116,16 @@ func (s *Server)clientConnected(conn net.Conn) {
 		opcode := pkt[1]
 		switch opcode {
 		case OP_GET:
-			fmt.Println("GET", key)
-			val, exists := s.cm.Get(key)
-			sendGetResponse(conn, key, val, exists)
+			val, flags, exists := s.cm.Get(key)
+			sendGetResponse(conn, key, val, flags, exists)
 
 		case OP_SET:
-			fmt.Println("SET ", key)
-			s.cm.Set(key, val)
+			// get extra, flags subfield
+			flags := extra[:4] // first 4 bytes
+			s.cm.Set(key, val, flags)
 			sendResponse(conn, 0x00, "", make([]byte, 0), 0, make([]byte, 0))
 
 		case OP_DELETE:
-			fmt.Println("DELETE", key)
 			exists := s.cm.Delete(key)
 			sendDeleteResponse(conn, key, exists)
 
@@ -139,34 +139,36 @@ func (s *Server)clientConnected(conn net.Conn) {
 }
 
 func sendErrorResponse(conn net.Conn, msg string) {
-   // Field        (offset) (value)
-   // Magic        (0)    : 0x81
-   // Opcode       (1)    : 0x00
-   // Key length   (2,3)  : 0x0000
-   // Extra length (4)    : 0x00
-   // Data type    (5)    : 0x00
-   // Status       (6,7)  : 0x0001
-   // Total body   (8-11) : len(msg)
-   // Opaque       (12-15): 0x00000000
-   // CAS          (16-23): 0x0000000000000000
-   // Extras              : None
-   // Key                 : None
-   // Value        (24-x) : msg
+	// Field        (offset) (value)
+	// Magic        (0)    : 0x81
+	// Opcode       (1)    : 0x00
+	// Key length   (2,3)  : 0x0000
+	// Extra length (4)    : 0x00
+	// Data type    (5)    : 0x00
+	// Status       (6,7)  : 0x0001
+	// Total body   (8-11) : len(msg)
+	// Opaque       (12-15): 0x00000000
+	// CAS          (16-23): 0x0000000000000000
+	// Extras              : None
+	// Key                 : None
+	// Value        (24-x) : msg
 
 	bodyLen := make([]byte, 4)
 	binary.BigEndian.PutUint32(bodyLen, uint32(len(msg)))
 
 	resp := []byte{0x81, 0, 0, 0, 0, 0, 0, 1} // magic etc
-	resp = append(resp, bodyLen...) // body length
-	resp = append(resp, make([]byte, 12)...) // opaque + CAS
+	resp = append(resp, bodyLen...)           // body length
+	resp = append(resp, make([]byte, 12)...)  // opaque + CAS
 
 	resp = append(resp, []byte(msg)...) // stick error string on the end
 
 	conn.Write(resp)
 }
 
-func sendGetResponse(conn net.Conn, key string, val []byte, exists bool) {
-	extra := []byte{0xDE, 0xAD, 0xBE, 0xEF} // 0xdeadbeef, get response "extra"
+func sendGetResponse(conn net.Conn, key string, val []byte, flags []byte, exists bool) {
+	extra := make([]byte, 0)
+	extra = append(extra, flags...)
+	// extra = append(extra, 0, 0, 0, 0) // expiry
 
 	var status uint16
 	if exists {
@@ -174,7 +176,7 @@ func sendGetResponse(conn net.Conn, key string, val []byte, exists bool) {
 	} else {
 		status = STATUS_KEY_NOT_FOUND
 	}
-	sendResponse(conn, 0x00, key, val, status, extra)
+	sendResponse(conn, 0x00, "", val, status, extra)
 }
 
 func sendDeleteResponse(conn net.Conn, key string, exists bool) {
@@ -189,7 +191,7 @@ func sendDeleteResponse(conn net.Conn, key string, exists bool) {
 
 func sendResponse(conn net.Conn, opcode uint8, key string, val []byte, status uint16, extra []byte) {
 	totalLen := make([]byte, 4)
-	binary.BigEndian.PutUint32(totalLen, uint32(len(val) + len(extra) + len(key)))
+	binary.BigEndian.PutUint32(totalLen, uint32(len(val)+len(extra)+len(key)))
 
 	keyLen := make([]byte, 2)
 	binary.BigEndian.PutUint16(keyLen, uint16(len(key)))
@@ -208,7 +210,6 @@ func sendResponse(conn net.Conn, opcode uint8, key string, val []byte, status ui
 	resp = append(resp, key...)
 	resp = append(resp, val...)
 
-	fmt.Println(resp)
 	conn.Write(resp)
 }
 
@@ -223,8 +224,8 @@ func readAtLeast(count int, conn net.Conn) (int, []byte, error) {
 	// initial read
 	readCount, err := conn.Read(buf)
 	if err != nil {
-		fmt.Println("Error reading (", len(buf), "):", err.Error())
-		return 0,nil,err
+		// fmt.Println("Error reading (", len(buf), "):", err.Error())
+		return 0, nil, err
 	}
 
 	// slice buffer at read count
@@ -237,8 +238,8 @@ func readAtLeast(count int, conn net.Conn) (int, []byte, error) {
 		var readMoreCount int
 		readMoreCount, err = conn.Read(buf)
 		if err != nil {
-			fmt.Println("Error reading (", len(buf), "):", err.Error())
-			return 0,nil,err
+			// fmt.Println("Error reading (", len(buf), "):", err.Error())
+			return 0, nil, err
 		}
 		readCount += readMoreCount
 		read = append(read, buf[:readCount]...)

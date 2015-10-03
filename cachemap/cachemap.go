@@ -4,32 +4,37 @@ import (
 	"sync" // for RWMutex
 )
 
-type CacheItem []byte
+type Flags []byte
+
+type CacheItem struct {
+	flags Flags
+	val   []byte
+}
 
 type CacheMap struct {
-    mutex sync.RWMutex
-    m map[string]CacheItem
+	mutex sync.RWMutex
+	m     map[string]CacheItem
 }
 
 func New() *CacheMap {
-	return &(CacheMap{ m: make(map[string]CacheItem) })
+	return &(CacheMap{m: make(map[string]CacheItem)})
 }
 
-func (cm *CacheMap)Get(key string) (CacheItem, bool) {
+func (cm *CacheMap) Get(key string) ([]byte, Flags, bool) {
 	cm.mutex.RLock()
 	val, exists := cm.m[key]
 	cm.mutex.RUnlock()
 
-	return val, exists
+	return val.val, val.flags, exists
 }
 
-func (cm *CacheMap)Set(key string, val CacheItem) {
+func (cm *CacheMap) Set(key string, val []byte, flags Flags) {
 	cm.mutex.Lock()
-	cm.m[key] = val
+	cm.m[key] = CacheItem{flags: flags, val: val}
 	cm.mutex.Unlock()
 }
 
-func (cm *CacheMap)Delete(key string) bool {
+func (cm *CacheMap) Delete(key string) bool {
 	cm.mutex.Lock()
 	_, exists := cm.m[key]
 	delete(cm.m, key)
