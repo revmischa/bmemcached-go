@@ -29,7 +29,7 @@ will buffer the packet data so the overhead shouldn't be horrible but reading
 in as much data at a time as is available and then parsing the big block of bytes
 would certainly involve fewer context switches and buffer creations.
 
-bmemcached performance considerations:
+## bmemcached performance considerations:
 * bmemcached appears to rely on packet ordering for the response packets. If only 
 getk/setk/etc were used then response packet ordering would not matter and UDP might 
 potentially be used. This would eliminate the overhead on connecting to a host and 

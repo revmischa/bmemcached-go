@@ -138,27 +138,24 @@ func (s *Server) handleClientCommand(conn net.Conn) error {
 	// read the rest of the packet now that we know how big the variable-length bits are
 	packetTotalLen := minHeaderSize + totalLen
 
+	// neet to read more?
 	toReadLen := packetTotalLen - readCount
-	// fmt.Println("toReadLen", toReadLen)
-	if toReadLen > 0 {
-		// this needs testing... test client should try sending mega sized packets
+	for toReadLen > 0 {
+		if len(pkt) < packetTotalLen {
+			// resize pkt
+			newPkt := make([]byte, packetTotalLen)		
+			copy(newPkt, pkt)
+			pkt = newPkt
+		}
 
-		remainingBuf := pkt[readCount:]    // store the rest of the data into the rest of pkt
-		if len(remainingBuf) > toReadLen { // big enough?
-			// resize packet buffer
-			newBuf := make([]byte, packetTotalLen)
-			copy(newBuf, pkt)
-			remainingBuf = newBuf[readCount:]
-		}
-		// readCount, pkt, err = readAtLeast(totalLen, conn)
-		readCount, err := io.ReadAtLeast(conn, remainingBuf, totalLen)
-		if readCount != totalLen {
-			err = errors.New("Failed to read expected packet length")
-		}
+		buf := pkt[readCount:] // part of pkt to use as our read buffer
+		readMoreCount, err := io.ReadAtLeast(conn, buf, toReadLen)
 		if err != nil {
 			return err
 		}
-		pkt = append(pkt, remainingBuf...)
+		readCount += readMoreCount
+
+		toReadLen = packetTotalLen - readCount
 	}
 
 	// extract variable-length fields (extra, key, val)

@@ -3,6 +3,8 @@
 import unittest
 import bmemcached
 from bmemcached.compat import long, unicode
+from random import choice
+from string import lowercase
 
 class MemcachedTests(unittest.TestCase):
     def setUp(self):
@@ -43,6 +45,14 @@ class MemcachedTests(unittest.TestCase):
         value = self.client.get('test_key')
         self.assertEqual(1, value)
         self.assertTrue(isinstance(value, int))
+
+    def testGetBigString(self):
+        s = "".join(choice(lowercase) for i in range(30000))
+
+        self.client.set('test_key', s)
+        value = self.client.get('test_key')
+        self.assertEqual(s, value)
+        self.assertTrue(isinstance(value, str))
 
     def testGetBoolean(self):
         self.client.set('test_key', True)
