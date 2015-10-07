@@ -315,7 +315,7 @@ type CacheMap struct {
 }
 
 func NewCacheMap() *CacheMap {
-	return &(CacheMap{m: make(map[string]CacheItem)})
+	return &CacheMap{m: make(map[string]CacheItem)}
 }
 
 /// Mediate access with a read/write mutex
