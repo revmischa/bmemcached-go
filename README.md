@@ -16,7 +16,10 @@ should allow safe concurrent access while providing optimal speed for reads
 if no writers hold the mutex.
 * Only point of contention in the main routine is the `accept()` loop. When a 
 new client connects a goroutine is set up to handle all further communication 
-with that client and the main routine can continue accepting clients.
+with that client and the main routine can continue accepting clients. Normally
+you can specify a backlog argument to `listen()` but no such setting seems
+available in the Go implementation. If a flood of connections happens all at
+once some clients may not get accepted (and will probably retry).
 * Timeouts for reading/writing on client sockets are _disabled_. This means that 
 connections could pile up and starve the system of file descriptors. I believe 
 this is preferable to disconnecting from long-running clients.

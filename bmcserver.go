@@ -283,6 +283,7 @@ func sendErrorResponse(conn net.Conn, msg string) error {
     bodyLen := make([]byte, 4)
 	binary.BigEndian.PutUint32(bodyLen, uint32(len(msg)))
 
+	// inefficient since this re-allocates. fortunately we have no errors ever :)
 	resp := []byte{0x81, 0, 0, 0, 0, 0, 0, 1} // magic etc
 	resp = append(resp, bodyLen...)           // body length
 	resp = append(resp, make([]byte, 12)...)  // opaque + CAS
