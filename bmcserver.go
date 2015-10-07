@@ -281,10 +281,6 @@ func sendErrorResponse(conn net.Conn, msg string) error {
 	// Value        (24-x) : msg
 
     bodyLen := make([]byte, 4)
-	totalLen := 24 + len(msg)
-	resp := make([]byte, totalLen)
-
-	bodyLen := make([]byte, totalLen)
 	binary.BigEndian.PutUint32(bodyLen, uint32(len(msg)))
 
 	resp := []byte{0x81, 0, 0, 0, 0, 0, 0, 1} // magic etc
