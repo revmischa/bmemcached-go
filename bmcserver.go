@@ -139,7 +139,7 @@ func (s *Server) handleClientCommand(conn net.Conn) error {
 	packetTotalLen := minHeaderSize + totalLen
 
 	toReadLen := packetTotalLen - readCount
-	fmt.Println("toReadLen", toReadLen)
+	// fmt.Println("toReadLen", toReadLen)
 	if toReadLen > 0 {
 		// this needs testing... test client should try sending mega sized packets
 
@@ -161,8 +161,6 @@ func (s *Server) handleClientCommand(conn net.Conn) error {
 		pkt = append(pkt, remainingBuf...)
 	}
 
-	fmt.Println("total", packetTotalLen, "toRead", toReadLen)
-
 	// extract variable-length fields (extra, key, val)
 	pktVarFields := pkt[minHeaderSize:]
 	extra := pktVarFields[:extraLen]
@@ -170,7 +168,6 @@ func (s *Server) handleClientCommand(conn net.Conn) error {
 	key := string(pktVarFields[extraLen:keyEnd])
 	valEnd := keyEnd + int(valLen)
 	val := pktVarFields[keyEnd:valEnd] // or just pkt[keyEnd:] ?
-	fmt.Println("key", key)
 
 	// switch on requested operation (get/set/delete)
 	opcode := pkt[1]
@@ -224,12 +221,21 @@ func sendDeleteResponse(conn net.Conn, key string, exists bool) error {
 }
 
 func sendResponse(conn net.Conn, opcode uint8, key string, val []byte, status uint16, extra []byte) error {
-	// convert lengths to network byte order ints
-	totalLen := make([]byte, 4)
-	binary.BigEndian.PutUint32(totalLen, uint32(len(val)+len(extra)+len(key)))
+	const (
+		headerBaseLen = 24
+		opaqueAndCASLen = 12
+	)
+	// allocate response
+	varLen := len(val)+len(extra)+len(key)
+	totalLen := headerBaseLen + varLen
+	resp := make([]byte, totalLen)
 
-	keyLen := make([]byte, 2)
-	binary.BigEndian.PutUint16(keyLen, uint16(len(key)))
+	// convert lengths to network byte order ints
+	totalLenBytes := make([]byte, 4)
+	binary.BigEndian.PutUint32(totalLenBytes, uint32(varLen))
+
+	keyLenBytes := make([]byte, 2)
+	binary.BigEndian.PutUint16(keyLenBytes, uint16(len(key)))
 
 	statusBytes := make([]byte, 2)
 	binary.BigEndian.PutUint16(statusBytes, status)
@@ -237,54 +243,26 @@ func sendResponse(conn net.Conn, opcode uint8, key string, val []byte, status ui
 	extraLen := byte(len(extra))
 
 	// header
-	resp := []byte{0x81, opcode, keyLen[0], keyLen[1], extraLen, 0}
-	resp = append(resp, statusBytes...)
-	resp = append(resp, totalLen...)
-	resp = append(resp, make([]byte, 12)...) // opaque + CAS
+	head := []byte{0x81, opcode, keyLenBytes[0], keyLenBytes[1], extraLen, 0}
+	i := len(head)
+	copy(resp[0:i], head)
+	copy(resp[i:i+len(statusBytes)], statusBytes)
+	i += len(statusBytes)
+	copy(resp[i:i+len(totalLenBytes)], totalLenBytes)
+	i += len(totalLenBytes)
+	copy(resp[i:i+opaqueAndCASLen], make([]byte, opaqueAndCASLen)) // opaque + CAS
+	i += opaqueAndCASLen
 
 	// variable-length sections
-	resp = append(resp, extra...)
-	resp = append(resp, key...)
-	resp = append(resp, val...)
+	copy(resp[i:i+len(extra)], extra)
+	i += len(extra)
+	copy(resp[i:i+len(key)], key)
+	i += len(key)
+	copy(resp[i:i+len(val)], val)
+	i += len(val)
 
 	_, err := conn.Write(resp)
 	return err
-}
-
-// attempts to read a given number of bytes from conn
-func readAtLeast(count int, conn net.Conn) (int, []byte, error) {
-	if count == 0 {
-		return 0, nil, nil
-	}
-
-	buf := make([]byte, count)
-	read := make([]byte, 0)
-
-	// initial read
-	readCount, err := conn.Read(buf)
-	if err != nil {
-		// fmt.Println("Error reading (", len(buf), "):", err.Error())
-		return 0, nil, err
-	}
-
-	// slice buffer at read count
-	read = append(read, buf[:readCount]...)
-	buf = buf[readCount:]
-
-	for readCount < count {
-		var readMoreCount int
-		readMoreCount, err = conn.Read(buf)
-		if err != nil {
-			// fmt.Println("Error reading (", len(buf), "):", err.Error())
-			return 0, nil, err
-		}
-		readCount += readMoreCount
-		read = append(read, buf[:readCount]...)
-		buf = buf[readCount:]
-	}
-
-	// I think this returns a copy of read, which is less than ideal
-	return readCount, read, nil
 }
 
 func sendErrorResponse(conn net.Conn, msg string) error {
@@ -302,13 +280,16 @@ func sendErrorResponse(conn net.Conn, msg string) error {
 	// Key                 : None
 	// Value        (24-x) : msg
 
-	bodyLen := make([]byte, 4)
+    bodyLen := make([]byte, 4)
+	totalLen := 24 + len(msg)
+	resp := make([]byte, totalLen)
+
+	bodyLen := make([]byte, totalLen)
 	binary.BigEndian.PutUint32(bodyLen, uint32(len(msg)))
 
 	resp := []byte{0x81, 0, 0, 0, 0, 0, 0, 1} // magic etc
 	resp = append(resp, bodyLen...)           // body length
 	resp = append(resp, make([]byte, 12)...)  // opaque + CAS
-
 	resp = append(resp, []byte(msg)...) // stick error string on the end
 
 	_, err := conn.Write(resp)
