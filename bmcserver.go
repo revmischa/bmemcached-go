@@ -309,6 +309,8 @@ type CacheItem struct {
 	val   []byte
 }
 
+// CacheMap is a memcached cache with strings for keys, byte array + flags for values
+// access is synchronized via Get/Set/Delete methods
 type CacheMap struct {
 	mu sync.RWMutex
 	m  map[string]CacheItem
@@ -320,6 +322,7 @@ func NewCacheMap() *CacheMap {
 
 /// Mediate access with a read/write mutex
 
+// Get returns the cached value, associated flags and if the item exists
 func (cm *CacheMap) Get(key string) (val []byte, fl Flags, ok bool) {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
@@ -328,12 +331,14 @@ func (cm *CacheMap) Get(key string) (val []byte, fl Flags, ok bool) {
 	return ival.val, ival.flags, ok
 }
 
+// Set cache value with associated flags
 func (cm *CacheMap) Set(key string, val []byte, flags Flags) {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 	cm.m[key] = CacheItem{flags: flags, val: val}
 }
 
+// Delete deletes key from the cache and reports if it existed
 func (cm *CacheMap) Delete(key string) (ok bool) {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
