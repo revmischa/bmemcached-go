@@ -320,12 +320,12 @@ func NewCacheMap() *CacheMap {
 
 /// Mediate access with a read/write mutex
 
-func (cm *CacheMap) Get(key string) ([]byte, Flags, bool) {
+func (cm *CacheMap) Get(key string) (val []byte, fl Flags, ok bool) {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
-	val, exists := cm.m[key]
+	ival, ok := cm.m[key]
 
-	return val.val, val.flags, exists
+	return ival.val, ival.flags, ok
 }
 
 func (cm *CacheMap) Set(key string, val []byte, flags Flags) {
@@ -334,11 +334,11 @@ func (cm *CacheMap) Set(key string, val []byte, flags Flags) {
 	cm.m[key] = CacheItem{flags: flags, val: val}
 }
 
-func (cm *CacheMap) Delete(key string) bool {
+func (cm *CacheMap) Delete(key string) (ok bool) {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
-	_, exists := cm.m[key]
+	_, ok = cm.m[key]
 	delete(cm.m, key)
 
-	return exists
+	return ok
 }
