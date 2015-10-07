@@ -305,8 +305,8 @@ type CacheItem struct {
 }
 
 type CacheMap struct {
-	mutex sync.RWMutex
-	m     map[string]CacheItem
+	mu sync.RWMutex
+	m  map[string]CacheItem
 }
 
 func NewCacheMap() *CacheMap {
@@ -316,22 +316,22 @@ func NewCacheMap() *CacheMap {
 /// Mediate access with a read/write mutex
 
 func (cm *CacheMap) Get(key string) ([]byte, Flags, bool) {
-	cm.mutex.RLock()
-	defer cm.mutex.RUnlock()
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
 	val, exists := cm.m[key]
 
 	return val.val, val.flags, exists
 }
 
 func (cm *CacheMap) Set(key string, val []byte, flags Flags) {
-	cm.mutex.Lock()
-	defer cm.mutex.Unlock()
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
 	cm.m[key] = CacheItem{flags: flags, val: val}
 }
 
 func (cm *CacheMap) Delete(key string) bool {
-	cm.mutex.Lock()
-	defer cm.mutex.Unlock()
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
 	_, exists := cm.m[key]
 	delete(cm.m, key)
 
