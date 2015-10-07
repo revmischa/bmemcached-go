@@ -179,8 +179,8 @@ func (s *Server) handleClientCommand(conn net.Conn) error {
 
 	case opSet:
 		// get extra, flags subfield
-		flags := extra[:4] // first 4 bytes
-		s.cm.Set(key, val, flags)
+		flags := binary.BigEndian.Uint32(extra[:4]) // first 4 bytes
+		s.cm.Set(key, val, Flags(flags))
 		err = sendResponse(conn, 0x00, "", make([]byte, 0), 0, make([]byte, 0))
 
 	case opDelete:
@@ -196,9 +196,12 @@ func (s *Server) handleClientCommand(conn net.Conn) error {
 	return err
 }
 
-func sendGetResponse(conn net.Conn, key string, val []byte, flags []byte, exists bool) error {
+func sendGetResponse(conn net.Conn, key string, val []byte, flags Flags, exists bool) error {
 	extra := make([]byte, 0)
-	extra = append(extra, flags...)
+
+	flagsBytes := make([]byte, 4)
+	binary.BigEndian.PutUint32(flagsBytes, uint32(flags))
+	extra = append(extra, flagsBytes...)
 	// extra = append(extra, 0, 0, 0, 0) // expiry
 
 	var status uint16
@@ -292,12 +295,14 @@ func sendErrorResponse(conn net.Conn, msg string) error {
 	return err
 }
 
+
 // CACHEMAP
 
 // The actual storage of our objects. Safe for concurrent accesses.
 // TODO: LRU + expiry so that memory doesn't grow forever
 
-type Flags []byte
+// store the raw flag data that was passed in from the client for a given cache item
+type Flags uint32
 
 type CacheItem struct {
 	flags Flags
